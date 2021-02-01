@@ -157,5 +157,5 @@ def logout():
         del session['user_info']
     return redirect(url_for('index'))
 
-
-app.run(debug=FLASK_DEBUG, port=5000)
+if __name__ == '__main__':
+    app.run()
