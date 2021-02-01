@@ -158,4 +158,4 @@ def logout():
     return redirect(url_for('index'))
 
 
-app.run(debug=FLASK_DEBUG, port=8001)
+app.run(debug=FLASK_DEBUG, port=5000)
