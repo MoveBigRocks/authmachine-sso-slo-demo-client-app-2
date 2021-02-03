@@ -66,6 +66,15 @@ class AuthMachineClient(object):
         url = self.client.provider_info['authorization_endpoint'] + '?' + urlencode(args, True)
         return url
 
+    def get_logout_url(self):
+        args = {
+            'scope': AUTHMACHINE_SCOPE,
+            'post_logout_redirect_uri': self.host + url_for('auth_logout_callback'),
+            'state': 'some-state-which-will-be-returned-unmodified'
+        }
+        url = self.client.provider_info['end_session_endpoint'] + '?' + urlencode(args, True)
+        return url
+
     def get_access_token(self, aresp):
         """Gets access token from AuthMachine.
         Args:
@@ -153,6 +162,12 @@ def auth_callback():
 
 @app.route('/logout')
 def logout():
+    client = AuthMachineClient()
+    return redirect(client.get_logout_url())
+
+
+@app.route('/oidc-logout-callback')
+def auth_logout_callback():
     if 'user_info' in session:
         del session['user_info']
     return redirect(url_for('index'))
