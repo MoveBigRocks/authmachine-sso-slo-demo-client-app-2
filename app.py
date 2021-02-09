@@ -14,7 +14,7 @@ from oic.utils.authn.client import ClientSecretBasic, ClientSecretPost
 from flask import *
 from dotenv import load_dotenv
 from pathlib import Path
-import os
+from utils import clear_user_session
 
 
 load_dotenv()
@@ -70,7 +70,8 @@ class AuthMachineClient(object):
         args = {
             'scope': AUTHMACHINE_SCOPE,
             'post_logout_redirect_uri': self.host + url_for('auth_logout_callback'),
-            'state': 'some-state-which-will-be-returned-unmodified'
+            'state': 'some-state-which-will-be-returned-unmodified',
+            'revoke_tokens': 1
         }
         url = self.client.provider_info['end_session_endpoint'] + '?' + urlencode(args, True)
         return url
@@ -97,7 +98,6 @@ class AuthMachineClient(object):
         """Returns Open ID userinfo as dict.
         """
 
-        self.get_access_token(authorization_response)
         user_info = self.client.do_user_info_request(
             state=authorization_response['state'],
             authn_method='client_secret_post')
@@ -136,6 +136,23 @@ class AuthMachineClient(object):
         else:
             return []
 
+    def check_user_session(self, token):
+        args = {
+            'client_id': self.client.client_id,
+            'client_secret': self.client.client_secret,
+            'access_token': token['access_token'],
+            'grant_type': 'check_token_revoked',
+        }
+        response = requests.request(method="POST",
+                                    url=os.path.join(AUTHMACHINE_URL, "oidc/token"),
+                                    data=args)
+
+        if response.status_code == 200:
+            data = response.json()
+            return data
+        else:
+            return None
+
 
 app = Flask(__name__)
 app.secret_key = b'23487384738748374837'
@@ -143,6 +160,12 @@ app.secret_key = b'23487384738748374837'
 
 @app.route('/')
 def index():
+    if "user_info" in session and "token" in session:
+        client = AuthMachineClient()
+        token = session["token"]
+        user_session = client.check_user_session(json.loads(token))
+        if user_session and user_session["revoked"]:
+            clear_user_session()
     return render_template('index.jinja', user_info=session.get('user_info'))
 
 
@@ -156,6 +179,8 @@ def login():
 def auth_callback():
     client = AuthMachineClient()
     aresp = client.get_authorization_response()
+    token = client.get_access_token(aresp)
+    session['token'] = token.to_json()
     session['user_info'] = client.get_userinfo(aresp)
     return redirect(url_for('index'))
 
@@ -168,9 +193,8 @@ def logout():
 
 @app.route('/oidc-logout-callback')
 def auth_logout_callback():
-    if 'user_info' in session:
-        del session['user_info']
+    clear_user_session()
     return redirect(url_for('index'))
 
 if __name__ == '__main__':
-    app.run()
+    app.run(port=5001)
