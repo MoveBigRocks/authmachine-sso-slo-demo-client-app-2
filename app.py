@@ -76,13 +76,13 @@ class AuthMachineClient(object):
         url = self.client.provider_info['end_session_endpoint'] + '?' + urlencode(args, True)
         return url
 
-    def get_access_token(self, aresp):
+    def get_access_token(self, a_resp):
         """Gets access token from AuthMachine.
         Args:
-            aresp (AuthorizationResponse):
+            a_resp (AuthorizationResponse):
         """
         args = {
-            'code': aresp['code'],
+            'code': a_resp['code'],
             'client_id': self.client.client_id,
             'client_secret': self.client.client_secret,
             'redirect_uri': self.host + url_for('auth_callback')
@@ -90,7 +90,7 @@ class AuthMachineClient(object):
 
         return self.client.do_access_token_request(
             scope=AUTHMACHINE_SCOPE,
-            state=aresp['state'],
+            state=a_resp['state'],
             request_args=args,
             authn_method='client_secret_post')
 
@@ -136,7 +136,7 @@ class AuthMachineClient(object):
         else:
             return []
 
-    def check_user_session(self, token):
+    def check_token_revoked_status(self, token):
         args = {
             'client_id': self.client.client_id,
             'client_secret': self.client.client_secret,
@@ -163,7 +163,7 @@ def index():
     if "user_info" in session and "token" in session:
         client = AuthMachineClient()
         token = session["token"]
-        user_session = client.check_user_session(json.loads(token))
+        user_session = client.check_token_revoked_status(json.loads(token))
         if user_session and user_session["revoked"]:
             clear_user_session()
     return render_template('index.jinja', user_info=session.get('user_info'))
@@ -178,10 +178,10 @@ def login():
 @app.route('/oidc-callback')
 def auth_callback():
     client = AuthMachineClient()
-    aresp = client.get_authorization_response()
-    token = client.get_access_token(aresp)
+    a_resp = client.get_authorization_response()
+    token = client.get_access_token(a_resp)
     session['token'] = token.to_json()
-    session['user_info'] = client.get_userinfo(aresp)
+    session['user_info'] = client.get_userinfo(a_resp)
     return redirect(url_for('index'))
 
 
